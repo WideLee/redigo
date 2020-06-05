@@ -43,6 +43,20 @@ type Message struct {
 	Data []byte
 }
 
+const InvalidateChannel = "__redis__:invalidate"
+
+// Message represents a message notification.
+type InvalidateMessage struct {
+	// The originating channel.
+	Channel string
+
+	// The matched pattern, if any
+	Pattern string
+
+	// The message data.
+	Data []string
+}
+
 // Pong represents a pubsub pong notification.
 type Pong struct {
 	Data string
@@ -120,11 +134,25 @@ func (c PubSubConn) receiveInternal(replyArg interface{}, errArg error) interfac
 
 	switch kind {
 	case "message":
-		var m Message
-		if _, err := Scan(reply, &m.Channel, &m.Data); err != nil {
-			return err
+		var channel string
+		reply, err = Scan(reply, &channel)
+		if channel == InvalidateChannel {
+			var m InvalidateMessage
+			m.Channel = channel
+			if _, err := Scan(reply, &m.Data); err != nil {
+				return err
+			}
+
+			return m
+		} else {
+			var m Message
+			m.Channel = channel
+			if _, err := Scan(reply, &m.Data); err != nil {
+				return err
+			}
+
+			return m
 		}
-		return m
 	case "pmessage":
 		var m Message
 		if _, err := Scan(reply, &m.Pattern, &m.Channel, &m.Data); err != nil {
